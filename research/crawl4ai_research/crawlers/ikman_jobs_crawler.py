@@ -3,7 +3,7 @@ import asyncio
 import re
 import math
 from typing import List
-from crawl4ai import AsyncWebCrawler, CrawlerRunConfig, BrowserConfig, LLMConfig, LLMExtractionStrategy
+from crawl4ai import AsyncWebCrawler, CrawlerRunConfig, BrowserConfig, LLMConfig, LLMExtractionStrategy, MemoryAdaptiveDispatcher, CrawlerMonitor, DisplayMode
 from crawlers.schemas.job_schema import JOB_EXTRACTION_SCHEMA, BASE_JOB_INSTRUCTION
 
 async def get_last_page_from_text():
@@ -31,9 +31,16 @@ async def get_last_page_from_text():
 
 
 
-async def ikman_jobs_extraction(max_pages: int = 1):
+async def ikman_jobs_extraction(max_pages: int = 3):
 
-    max_pages = await get_last_page_from_text()
+    dispatcher = MemoryAdaptiveDispatcher(
+        memory_threshold_percent=80.0,
+        check_interval=1.0,      
+        max_session_permit=3,
+        monitor=CrawlerMonitor()
+    )
+
+    #max_pages = await get_last_page_from_text()
     extracted_jobs_list = []
     
     detail_extraction_strategy = LLMExtractionStrategy(
@@ -46,7 +53,15 @@ async def ikman_jobs_extraction(max_pages: int = 1):
         extra_args={"base_url": "https://api.deepseek.com", "temperature": 0.0},
     )
 
-    browser_config = BrowserConfig(headless=True)
+    browser_config = BrowserConfig(
+        headless=True,
+        extra_args=[
+            "--disable-gpu", 
+            "--disable-dev-shm-usage", 
+            "--no-sandbox",
+            "--js-flags=--max-old-space-size=512" # Limits JS memory
+        ]
+    )
 
     async with AsyncWebCrawler(config=browser_config) as crawler:
         all_job_urls = []
@@ -80,27 +95,52 @@ async def ikman_jobs_extraction(max_pages: int = 1):
             return
 
         #limit_urls = full_urls[:] 
+        # ... (previous setup code)
+
         print(f"Total jobs found: {len(full_urls)}.")
         
         detail_config = CrawlerRunConfig(
             extraction_strategy=detail_extraction_strategy,
-            cache_mode="BYPASS"
+            cache_mode="BYPASS",
+            stream=True,         
+            page_timeout=60000   
         )
 
-        results = await crawler.arun_many(urls=full_urls, config=detail_config)
+        # Start the multi-page crawl
+        results_generator = await crawler.arun_many(
+            urls=full_urls, 
+            config=detail_config,
+            dispatcher=dispatcher
+        )
 
-        for result in results:
-            if result.success:
-                try:
-                    data = json.loads(result.extracted_content)
-                    print(json.dumps(data, indent=2))
+        # Use async for to process each result as it finishes
+        async for result in results_generator:
+            # 1. HANDLE TIMEOUTS / ERRORS
+            if not result.success:
+                # This logs the error and moves to the NEXT result automatically
+                print(f"SKIPPING: {result.url} | Error: {result.error_message}")
+                continue 
 
-                    if isinstance(data, list):
-                        extracted_jobs_list.extend(data)
-                    else:
-                        extracted_jobs_list.append(data)
-                except json.JSONDecodeError:
-                    # Sometimes LLM output needs cleaning
-                    print(f"Error parsing JSON for {result.url}")
+            # 2. HANDLE SUCCESSFUL FETCH BUT EMPTY CONTENT
+            if not result.extracted_content:
+                print(f"WARNING: No content extracted from {result.url}")
+                continue
+
+            # 3. ATTEMPT DATA PARSING
+            try:
+                data = json.loads(result.extracted_content)
+                
+                # Success! Add to your list
+                if isinstance(data, list):
+                    extracted_jobs_list.extend(data)
+                else:
+                    extracted_jobs_list.append(data)
+                
+                print(f"SUCCESS: Extracted data from {result.url}")
+
+            except json.JSONDecodeError:
+                print(f"ERROR: LLM returned invalid JSON for {result.url}")
+            except Exception as e:
+                print(f"ERROR: Unexpected error processing {result.url}: {e}")
 
         return extracted_jobs_list
