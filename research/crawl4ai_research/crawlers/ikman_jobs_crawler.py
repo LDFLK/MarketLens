@@ -40,7 +40,7 @@ async def ikman_jobs_extraction(max_pages: int = 3):
         monitor=CrawlerMonitor()
     )
 
-    #max_pages = await get_last_page_from_text()
+    max_pages = await get_last_page_from_text()
     extracted_jobs_list = []
     
     detail_extraction_strategy = LLMExtractionStrategy(
