@@ -30,12 +30,12 @@ jobs:
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install -r research/crawl4ai_research/requirements.txt
           # Crawl4AI requires playwright browsers to be installed
           python -m playwright install --with-deps chromium
 
       - name: Run Scraper
-        run: python main.py
+        run: python research/crawl4ai_research/main.py
 
       - name: Commit and Push Jobs Data
         run: |
