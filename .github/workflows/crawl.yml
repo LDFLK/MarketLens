@@ -42,7 +42,7 @@ jobs:
           git config --global user.name "crawl-bot[bot]"
           git config --global user.email "crawl-bot@users.noreply.github.com"
           
-          git add storage/jobs/jobs.json
+          git add research/crawl4ai_research/storage/jobs/jobs.json
           
           TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
           git commit -m "Auto-update jobs data - $TIMESTAMP" || echo "No changes to commit"
