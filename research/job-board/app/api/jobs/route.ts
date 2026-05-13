@@ -4,20 +4,24 @@ import { Job } from "@/types/job";
 const DATA_URL =
   "https://raw.githubusercontent.com/LDFLK/MarketLens/refs/heads/main/research/crawl4ai_research/storage/jobs/jobs.json";
 
-let cachedJobs: Job[] | null = null;
-
 async function getAllJobs(): Promise<Job[]> {
-  if (cachedJobs) return cachedJobs;
+  console.log("Fetching:", DATA_URL);
 
   const res = await fetch(DATA_URL, {
-    next: { revalidate: 3600 },
+    cache: "no-store", // bypass cache for debugging
   });
 
-  if (!res.ok) throw new Error("Failed to fetch jobs");
+  console.log("Status:", res.status);
+
+  if (!res.ok) {
+    const text = await res.text();
+    console.error("Error body:", text.slice(0, 300));
+    throw new Error(`Fetch failed: ${res.status}`);
+  }
 
   const data: Job[] = await res.json();
-  cachedJobs = data;
-  return cachedJobs;
+  console.log("Jobs count:", data.length);
+  return data;
 }
 
 export async function GET(req: NextRequest) {
@@ -50,6 +54,10 @@ export async function GET(req: NextRequest) {
       meta: { total, page, totalPages, limit },
     });
   } catch (err) {
-    return NextResponse.json({ error: "Failed to load jobs" }, { status: 500 });
+    console.error("Route error:", err);
+    return NextResponse.json(
+      { error: String(err) }, // ← now shows real error
+      { status: 500 }
+    );
   }
 }
