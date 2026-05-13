@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Job } from "@/types/job";
 
 const DATA_URL =
-  "https://raw.githubusercontent.com/LDFLK/MarketLens/refs/heads/main/storage/jobs/jobs.json";
+  "https://raw.githubusercontent.com/LDFLK/MarketLens/refs/heads/main/research/crawl4ai_research/storage/jobs/jobs.json";
 
 let cachedJobs: Job[] | null = null;
 
