@@ -30,7 +30,7 @@ export default function JobsTable({ jobs, onRowClick }: Props) {
             >
               <td className="px-4 py-3 font-medium">{job.employer}</td>
               <td className="px-4 py-3">{job.job_role}</td>
-              <td className="px-4 py-3">
+              <td className="px-5 py-3 w-48">
                 <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs">
                   {job.job_type}
                 </span>
