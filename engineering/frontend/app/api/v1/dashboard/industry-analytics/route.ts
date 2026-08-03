@@ -27,12 +27,14 @@ export async function GET(request: NextRequest) {
       byExperience,
       byProvince,
       byEducation,
+      byVocationalEducation,
       topEmployers,
     ] = await Promise.all([
       fetch(`${GO_API}/industries/yearly-trend?industry_id=${industryId}`).then((r) => r.json()),
       fetch(`${GO_API}/industries/by-experience?industry_id=${industryId}&year=${year}`).then((r) => r.json()),
       fetch(`${GO_API}/industries/by-province?industry_id=${industryId}&year=${year}`).then((r) => r.json()),
       fetch(`${GO_API}/industries/by-education?industry_id=${industryId}&year=${year}`).then((r) => r.json()),
+      fetch(`${GO_API}/industries/by-vocational-education?industry_id=${industryId}&year=${year}`).then((r) => r.json()),
       fetch(`${GO_API}/industries/top-employers?industry_id=${industryId}&year=${year}`).then((r) => r.json()),
     ]);
 
@@ -43,6 +45,7 @@ export async function GET(request: NextRequest) {
       by_experience: byExperience,
       by_province: byProvince,
       by_education: byEducation,
+      by_vocational_education: byVocationalEducation,
       top_employers: topEmployers,
     });
   } catch (error) {

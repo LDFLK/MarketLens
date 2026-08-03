@@ -84,6 +84,8 @@ export interface VacancyListParams {
   geo_data_id?:   number;
   job_type_id?:   number;
   experience_id?: number;
+  limit?: number;
+  offset?: number;
 }
 
 export interface VacancyListResponse {

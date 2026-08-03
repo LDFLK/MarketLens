@@ -1,0 +1,80 @@
+import { NextRequest, NextResponse } from "next/server";
+
+const GO_API = process.env.GO_BACKEND_URL;
+
+// Get industry sub classes with pagination
+export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url);
+  const limit = searchParams.get("limit");
+  const offset = searchParams.get("offset");
+
+  const goParams = new URLSearchParams();
+  if (limit) goParams.set("limit", limit);
+  if (offset) goParams.set("offset", offset);
+
+  const queryString = goParams.toString();
+  const goUrl = `${GO_API}/industry-subclasses${queryString ? `?${queryString}` : ""}`;
+
+  console.log("[industry-subclasses] fetching from Go:", goUrl);
+
+  try {
+    const response = await fetch(goUrl);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("[industry-subclasses] Go error body:", errorText);
+      return NextResponse.json(
+        { error: "Go backend returned an error", details: errorText },
+        { status: response.status }
+      );
+    }
+
+    const data = await response.json();
+    return NextResponse.json(data);
+  } catch (error) {
+    console.error("[industry-subclasses] fetch failed:", error);
+    return NextResponse.json(
+      {
+        error: "Failed to fetch industry subclasses",
+        details: error instanceof Error ? error.message : String(error),
+      },
+      { status: 500 }
+    );
+  }
+}
+
+// Create new industry sub class
+export async function POST(request: NextRequest) {
+  const goUrl = `${GO_API}/industry-subclasses`;
+
+  try {
+    const body = await request.json();
+
+    const response = await fetch(goUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      console.error("[industry-subclasses] Go error body:", data);
+      return NextResponse.json(
+        { error: "Go backend returned an error", details: data },
+        { status: response.status }
+      );
+    }
+
+    return NextResponse.json(data, { status: 201 });
+  } catch (error) {
+    console.error("[industry-subclasses] create failed:", error);
+    return NextResponse.json(
+      {
+        error: "Failed to create industry subclass",
+        details: error instanceof Error ? error.message : String(error),
+      },
+      { status: 500 }
+    );
+  }
+}

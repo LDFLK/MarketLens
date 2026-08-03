@@ -8,6 +8,7 @@ const navigation = [
   { name: "Dashboard", href: "/", icon: LayoutDashboardIcon },
   { name: "Vacancies", href: "/vacancies", icon: BriefcaseIcon },
   { name: "Skill Analysis", href: "/skills", icon: BarChart3Icon },
+  { name: "KPIs", href: "/kpis", icon: GaugeIcon },
   { name: "Crawling Details", href: "/crawling-details", icon: ScanSearchIcon },
   // { name: "Regional View", href: "/regions", icon: MapPinIcon },
   // { name: "Forecasting", href: "/forecasting", icon: TrendingUpIcon },
@@ -148,6 +149,15 @@ function ScanSearchIcon({ className }: { className?: string }) {
       <path d="M21 17v2a2 2 0 0 1-2 2h-2" />
       <path d="M7 21H5a2 2 0 0 1-2-2v-2" />
       <circle cx="12" cy="12" r="3" />
+    </svg>
+  );
+}
+
+function GaugeIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="m12 14 4-4" />
+      <path d="M3.34 19a10 10 0 1 1 17.32 0" />
     </svg>
   );
 }

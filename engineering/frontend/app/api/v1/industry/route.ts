@@ -4,7 +4,7 @@ const GO_API = process.env.GO_BACKEND_URL;
 
 export async function GET() {
   try {
-    const response = await fetch(`${GO_API}/industries`);
+    const response = await fetch(`${GO_API}/industry-sectors`);
 
     if (!response.ok) {
       return NextResponse.json(
@@ -17,7 +17,7 @@ export async function GET() {
 
     return NextResponse.json({
       count:      data.count      ?? 0,
-      industries: data.industries ?? [],
+      industries: data.industry_sectors ?? [],
     });
   } catch (error) {
     return NextResponse.json(

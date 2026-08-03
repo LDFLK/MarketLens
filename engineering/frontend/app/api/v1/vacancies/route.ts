@@ -9,12 +9,16 @@ export async function GET(request: NextRequest) {
   const provinceId   = searchParams.get("geo_data_id");
   const jobTypeId    = searchParams.get("job_type_id");
   const experienceId = searchParams.get("experience_id");
+  const limit = searchParams.get("limit");
+  const offset = searchParams.get("offset");
 
   const goParams = new URLSearchParams();
   if (industryId)    goParams.set("industry_id",   industryId);
   if (provinceId)    goParams.set("geo_data_id",   provinceId);
   if (jobTypeId)     goParams.set("job_type_id",   jobTypeId);
   if (experienceId)  goParams.set("experience_id", experienceId);
+  if (limit)         goParams.set("limit", limit);
+  if (offset)        goParams.set("offset", offset);    
 
   const queryString = goParams.toString();
   const goUrl = `${GO_API}/jobs${queryString ? `?${queryString}` : ""}`;

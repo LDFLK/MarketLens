@@ -3,63 +3,51 @@
 interface HeaderProps {
   title: string;
   subtitle?: string;
+  avatarInitials?: string;
 }
 
-export default function Header({ title, subtitle }: HeaderProps) {
+export default function Header({
+  title,
+  subtitle,
+  avatarInitials = "BJ",
+}: HeaderProps) {
+  const formattedDate = new Date().toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+
   return (
-    <header className="flex items-center justify-between px-8 py-4 bg-white border-b border-gray-200">
+    <header className="bg-white border-b border-gray-100 px-8 py-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 sticky top-0 z-40">
       {/* Left: Page Title */}
       <div>
-        <h1 className="text-xl font-bold text-gray-900">{title}</h1>
+        <h1 className="text-xl font-black text-gray-900 tracking-tight">
+          {title}
+        </h1>
         {subtitle && (
-          <p className="text-sm text-gray-500 mt-0.5">{subtitle}</p>
+          <p className="text-xs text-gray-400 mt-1 font-medium">{subtitle}</p>
         )}
       </div>
 
-      <div className="flex items-center gap-5">
-
+      <div className="flex flex-wrap items-center gap-4 ml-auto md:ml-0 w-full md:w-auto justify-end">
         {/* Date */}
-        <div className="flex items-center gap-2 text-xs text-gray-500">
-          <svg className="w-4 h-4 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="3" y="4" width="18" height="18" rx="2" />
-            <path d="M16 2v4M8 2v4M3 10h18" />
+        <div className="flex items-center gap-2 bg-gray-50 px-3 py-1.5 rounded-xl text-xs text-gray-500 font-medium shadow-inner">
+          <svg
+            className="w-3.5 h-3.5 text-gray-400"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
+            <path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 002-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
           </svg>
-          <span>
-            {new Date().toLocaleDateString("en-GB", {
-              day: "2-digit",
-              month: "short",
-              year: "numeric",
-            })}
-          </span>
+          <span>{formattedDate}</span>
         </div>
-
-        {/* Divider */}
-        {/* <div className="w-px h-6 bg-gray-200" /> */}
-
-        {/* Export Button */}
-        {/* <button className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">
-          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-            <polyline points="7 10 12 15 17 10" />
-            <line x1="12" y1="15" x2="12" y2="3" />
-          </svg>
-          Export
-        </button> */}
-
-        {/* Divider */}
-        <div className="w-px h-6 bg-gray-200" />
 
         {/* User Avatar */}
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-full bg-primary-600 flex items-center justify-center">
-            <span className="text-white text-xs font-semibold">BJ</span>
-          </div>
-          {/* <div className="hidden md:block">
-            <p className="text-xs font-medium text-gray-800 leading-tight">Senthuran K.</p>
-            <p className="text-[10px] text-gray-400 leading-tight">Super Admin</p>
-          </div> */}
+        <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white text-xs font-black shadow-md border border-white">
+          {avatarInitials}
         </div>
-
       </div>
     </header>
   );

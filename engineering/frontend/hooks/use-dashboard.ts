@@ -4,6 +4,7 @@ import {
   DashboardOverview,
   OccupationAnalytics,
   IndustryAnalytics,
+  EmploymentSectorAnalytics,
 } from "@/types/dashboard";
 
 const BASE = ENV.NEXT_PUBLIC_API_BASE_URL;
@@ -24,16 +25,16 @@ export function useDashboardOverview() {
 }
 
 //Occupation analytics
-async function fetchOccupationAnalytics(occupationId: number): Promise<OccupationAnalytics> {
-  const res = await fetch(`${BASE}/dashboard/occupation-analytics?occupation_id=${occupationId}`);
+async function fetchOccupationAnalytics(occupationId: number, year: number): Promise<OccupationAnalytics> {
+  const res = await fetch(`${BASE}/dashboard/occupation-analytics?occupation_id=${occupationId}&year=${year}`);
   if (!res.ok) throw new Error("Failed to fetch occupation analytics");
   return res.json();
 }
 
-export function useOccupationAnalytics(occupationId: number | null) {
+export function useOccupationAnalytics(occupationId: number | null, year: number) {
   return useQuery<OccupationAnalytics>({
-    queryKey: ["dashboard", "occupation-analytics", occupationId],
-    queryFn:  () => fetchOccupationAnalytics(occupationId!),
+    queryKey: ["dashboard", "occupation-analytics", occupationId, year],
+    queryFn:  () => fetchOccupationAnalytics(occupationId!, year),
     enabled:  occupationId !== null,
     staleTime: 1000 * 60 * 5,
   });
@@ -56,6 +57,22 @@ export function useIndustryAnalytics(industryId: number | null, year: number) {
     queryKey: ["dashboard", "industry-analytics", industryId, year],
     queryFn:  () => fetchIndustryAnalytics(industryId!, year),
     enabled:  industryId !== null,
+    staleTime: 1000 * 60 * 5,
+  });
+}
+
+// Employment sector analytics
+async function fetchEmploymentSectorAnalytics(employmentSectorId: number): Promise<EmploymentSectorAnalytics> {
+  const res = await fetch(`${BASE}/dashboard/employment-sector-analytics?employment_sector_id=${employmentSectorId}`)
+  if (!res.ok) throw new Error("Failed to fetch employment sector analytics");
+  return res.json();
+}
+
+export function useEmploymentSectorAnalytics(employmentSectorId: number | null) {
+  return useQuery<EmploymentSectorAnalytics>({
+    queryKey: ["employment-sector-analytics", employmentSectorId],
+    queryFn: () => fetchEmploymentSectorAnalytics(employmentSectorId!),
+    enabled: employmentSectorId !== null,
     staleTime: 1000 * 60 * 5,
   });
 }
