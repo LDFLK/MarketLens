@@ -1,12 +1,17 @@
 import asyncio
 import json
 import os
+import logging
+
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import Tool, TextContent
 import src.api_client as api
 
 app = Server("marketlens-mcp")
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+logger = logging.getLogger("mcp")
 
 
 def ok(data: dict) -> list[TextContent]:
@@ -22,6 +27,36 @@ def err(message: str) -> list[TextContent]:
 @app.list_tools()
 async def list_tools() -> list[Tool]:
     return [
+
+        #Manual vacancy upload
+        Tool(
+            name="submit_vacancies",
+            description=(
+                "Submit a list of extracted job vacancies (e.g. from a scanned newspaper) "
+                "for deduplication and classification into the job market database. "
+                "Each job must include employer, job_role, location, description, and source."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "jobs": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "employer":    {"type": "string"},
+                                "job_role":    {"type": "string"},
+                                "location":    {"type": "string"},
+                                "description": {"type": "string"},
+                                "source":      {"type": "string"},
+                            },
+                            "required": ["employer", "job_role", "location", "description", "source"],
+                        },
+                    },
+                },
+                "required": ["jobs"],
+            },
+        ),
 
         #Reference data
         Tool(
@@ -167,8 +202,25 @@ async def list_tools() -> list[Tool]:
             name="get_occupation_analytics",
             description=(
                 "Get analytics for a specific occupation band: "
-                "3-year job posting trend and top 3 most in-demand job roles. "
+                "3-year job posting trend, formality breakdown, gender breakdown, "
+                "and top 3 most in-demand job roles for a given year. "
                 "Use get_occupations first to find the correct occupation_id."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "occupation_id": {"type": "integer", "description": "Occupation ID from get_occupations"},
+                    "year": {"type": "integer", "description": "Calendar year e.g. 2026"},
+                },
+                "required": ["occupation_id", "year"],
+            },
+        ),
+
+        Tool(
+            name="get_occupation_yearly_trend",
+            description=(
+                "Get the 3-year historical job posting trend for a specific occupation "
+                "(current year and 2 prior years). Use get_occupations first to find the correct occupation_id."
             ),
             inputSchema={
                 "type": "object",
@@ -197,6 +249,10 @@ async def list_tools() -> list[Tool]:
 @app.call_tool()
 async def call_tool(name: str, arguments: dict) -> list[TextContent]:
     try:
+
+        #Manual vacancy ingestion
+        if name == "submit_vacancies":
+            return ok(await api.submit_vacancies_manually(arguments["jobs"]))
 
         #Reference data
         if name == "get_industries":
@@ -295,16 +351,28 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
 
         #Occupation analytics
         if name == "get_occupation_analytics":
+            if "occupation_id" not in arguments or "year" not in arguments:
+                return err(
+                    "get_occupation_analytics requires both 'occupation_id' and 'year'. "
+                    f"Received arguments: {list(arguments.keys())}"
+                )
             occupation_id = arguments["occupation_id"]
-            yearly_trend, top_job_roles = await asyncio.gather(
-                api.get_occupation_yearly_trend(occupation_id),
-                api.get_occupation_top_job_roles(occupation_id),
+            year = arguments["year"]
+            by_formality, by_gender, top_job_roles = await asyncio.gather(
+                api.get_occupation_by_formality(occupation_id, year),
+                api.get_occupation_by_gender(occupation_id, year),
+                api.get_occupation_top_job_roles(occupation_id, year),
             )
             return ok({
                 "occupation_id": occupation_id,
-                "yearly_trend":  yearly_trend,
+                "year":          year,
+                "by_formality":  by_formality,
+                "by_gender":     by_gender,
                 "top_job_roles": top_job_roles,
             })
+
+        if name == "get_occupation_yearly_trend":
+            return ok(await api.get_occupation_yearly_trend(arguments["occupation_id"]))
 
         #Crawler monitoring
         if name == "get_crawler_status":
@@ -327,6 +395,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
 
 
 async def main():
+    logger.info(f"MCP server is started")
     async with stdio_server() as (read_stream, write_stream):
         await app.run(
             read_stream,

@@ -228,7 +228,7 @@ export default function VacanciesPage() {
                 <DetailItem label="Work Mode"     value= {selectedVacancy.is_remote ? "Remote Available" : "Office Based"} />
                 <DetailItem label="Location"   value={selectedVacancy.location} />
                 <DetailItem label="Job Type"    value={selectedVacancy.job_type.type} />
-                <DetailItem label="Industry"   value={selectedVacancy.meta_data.industry.name} />
+                {/* <DetailItem label="Industry"   value={selectedVacancy.meta_data.industry.name} /> */}
                 <DetailItem label="Experience" value={selectedVacancy.meta_data.experience.name} />
               </div>
 

@@ -55,7 +55,11 @@ services:
     build:
       context: ./engineering/crawler
       dockerfile: Dockerfile.crawler
+    ports:
+      - "8000:8000"
     container_name: python_crawler
+    env_file:
+      - ./engineering/crawler/.env
     environment:
       - API_URL=http://backend:8080/api/v1/jobs
     depends_on:
@@ -74,6 +78,7 @@ services:
     tty: false
     environment:
       - GO_API_URL=http://backend:8080/api/v1
+      - CRAWLER_API_URL=http://crawler:8000
     depends_on:
       - backend
     networks:

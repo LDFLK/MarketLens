@@ -2,13 +2,21 @@ import httpx
 import os
 
 GO_API_URL = os.getenv("GO_API_URL", "http://localhost:8080/api/v1")
+CRAWLER_API_URL = os.getenv("CRAWLER_API_URL", "http://localhost:8000")
 
 _client = httpx.AsyncClient(base_url=GO_API_URL, timeout=10.0)
+_crawler_client = httpx.AsyncClient(base_url=CRAWLER_API_URL, timeout=300.0)
 
 
 async def get(path: str, params: dict = None) -> dict:
     """Base GET helper — raises on non-2xx responses."""
     response = await _client.get(path, params=params)
+    response.raise_for_status()
+    return response.json()
+
+#Manual vacancy submission (newspaper uploads via crawler service)
+async def submit_vacancies_manually(jobs: list[dict]) -> dict:
+    response = await _crawler_client.post("/manual-upload-jobs", json=jobs)
     response.raise_for_status()
     return response.json()
 
@@ -115,8 +123,14 @@ async def get_industry_top_employers_by_year(industry_id: int, year: int):
 async def get_occupation_yearly_trend(occupation_id: int):
     return await get("/occupations/yearly-trend", params={"occupation_id": occupation_id})
 
-async def get_occupation_top_job_roles(occupation_id: int):
-    return await get("/occupations/top-job-roles", params={"occupation_id": occupation_id})
+async def get_occupation_by_formality(occupation_id: int, year: int):
+    return await get("/occupations/by-formality", params={"occupation_id": occupation_id, "year": year})
+
+async def get_occupation_by_gender(occupation_id: int, year: int):
+    return await get("/occupations/by-gender", params={"occupation_id": occupation_id, "year": year})
+
+async def get_occupation_top_job_roles(occupation_id: int, year: int):
+    return await get("/occupations/top-job-roles", params={"occupation_id": occupation_id, "year": year})
 
 
 #Crawler monitoring

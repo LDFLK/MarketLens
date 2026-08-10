@@ -25,5 +25,11 @@ RUN playwright install-deps chromium
 #Copy the rest of your crawl scripts
 COPY . .
 
-#Run your entry script
-CMD ["python", "main.py"]
+#Make the startup script executable
+RUN chmod +x start.sh
+
+#Expose the manual upload API port
+EXPOSE 8000
+
+#Run both the scheduler and the API
+CMD ["./start.sh"]

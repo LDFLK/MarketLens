@@ -2,23 +2,29 @@ import asyncio
 import requests
 import httpx
 import typing
+import logging
+import json
+import os
 
+from typing import List, Dict, Any
+from crawl4ai import LLMExtractionStrategy, LLMConfig
 from bs4 import BeautifulSoup
 from crawlers.base_crawler import BaseJobCrawler
 from utils.dedup_utils import JobDuplicationCheck
 from parsers.xpressjobs_parser import XpressJobsParser
-from schemas.job_schema import JOB_EXTRACTION_SCHEMA, BASE_JOB_INSTRUCTION
+from utils.occupation_classifier import OccupationClassifier
+from utils.industry_classifier import IndustryClassifier
 from config import BACKEND_BASE_URL, BATCH_SIZE
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("xpressjobs_crawler")
 
-class XpreeJobsCrawler(BaseJobCrawler):
+class XpresJobsCrawler(BaseJobCrawler):
 
     def __init__(self):
         self._parser = XpressJobsParser()
         self.duplication_checker = JobDuplicationCheck()
-        self.async_client = httpx.AsyncClient()
+        self.async_client = httpx.AsyncClient(timeout=30.0)
 
     def _clean_html(self, html_content):
         if not html_content:
@@ -27,18 +33,22 @@ class XpreeJobsCrawler(BaseJobCrawler):
         return soup.get_text(separator=" ").strip()
 
     async def _fetch_job_details(self, job_id):
-        url = f"https://xpress.jobs/api/jobs/publishedJob?jobId={job_id}"
-        response = await self.async_client.get(url)
-        if response.status_code == 200:
-            data = response.json()
-            
-            return {
-                "job_title": data.get("jobTitle"),
-                "employer": data.get("jobItem", {}).get("organizationName"),
-                "location": data.get("jobItem", {}).get("locations"),
-                "description": self._clean_html(data.get("jobInfo", ""))
-            }
-        return None
+        try:
+            url = f"https://xpress.jobs/api/jobs/publishedJob?jobId={job_id}"
+            response = await self.async_client.get(url)
+            if response.status_code == 200:
+                data = response.json()
+                
+                return {
+                    "job_title": data.get("jobTitle"),
+                    "employer": data.get("jobItem", {}).get("organizationName"),
+                    "location": data.get("jobItem", {}).get("locations"),
+                    "description": self._clean_html(data.get("jobInfo", ""))
+                }
+            return None
+        except Exception as e:
+            logger.warning(f"Failed to fetch details for job {job_id}: {e}")
+            return None
 
     async def _process_all_jobs(self):
         final_data = []
@@ -54,18 +64,18 @@ class XpreeJobsCrawler(BaseJobCrawler):
                 response = await self.async_client.get(list_url, timeout=10)
                 jobs_list = response.json()
             except Exception as e:
-                print(f"Error fetching page {page}: {e}")
+                logger.error(f"Error fetching page {page}: {e}")
                 break
                 
             # Break the loop if the list is empty
             if not jobs_list:
-                print("No more jobs found. Finishing.")
+                logger.info("No more jobs found. Finishing.")
                 break
             
             # Process each job on the current page
             for job_summary in jobs_list:
                 job_id = job_summary['jobId']
-                print(f"Processing job {job_id}: {job_summary['jobTitle']}")
+                logger.info(f"Processing job {job_id}: {job_summary['jobTitle']}")
                 
                 details = await self._fetch_job_details(job_id)
                 if details:
@@ -76,7 +86,7 @@ class XpreeJobsCrawler(BaseJobCrawler):
             # Move to next page
             page += 1
 
-            if page >= 3:
+            if page > 2:
                 break
             
             await asyncio.sleep(10)
@@ -87,7 +97,11 @@ class XpreeJobsCrawler(BaseJobCrawler):
     async def crawl_jobs(
         self,
         crawler_run_id: int,
-        async_client: httpx.AsyncClient
+        async_client: httpx.AsyncClient,
+        schema: dict,
+        instruction: str,
+        occupation_classifier: OccupationClassifier,
+        industry_classifier: IndustryClassifier,
     ) -> None:
 
         logger.info("Xpress jobs crawl started.")
@@ -103,8 +117,8 @@ class XpreeJobsCrawler(BaseJobCrawler):
                 provider="deepseek/deepseek-chat",
                 api_token=os.getenv("DEEPSEEK_API_KEY"),
             ),
-            instruction=BASE_JOB_INSTRUCTION,
-            schema=json.dumps(JOB_EXTRACTION_SCHEMA),
+            instruction=instruction,
+            schema=json.dumps(schema),
             extraction_type="schema", 
             apply_chunking=False,          
             extra_args={"base_url": "https://api.deepseek.com", "temperature": 0.0},
@@ -145,8 +159,15 @@ class XpreeJobsCrawler(BaseJobCrawler):
                     try:
                         extracted_job = llm_res[0]
 
+                        job_text = f"{extracted_job.get('job_role', '')} {extracted_job.get('job_description', '')}"
+                        occupation_group_id = await occupation_classifier.classify(job_text)
+                        industry_subclass_id = await industry_classifier.classify(job_text)
+
                         extracted_job["meta_data"]["crawler_run_id"] = crawler_run_id
                         extracted_job["meta_data"]["minhash_signature"] = minhash_sig
+                        extracted_job["meta_data"]["occupation_group_id"] = occupation_group_id
+                        extracted_job["meta_data"]["industry_subclass_id"] = industry_subclass_id
+                        extracted_job["meta_data"]["source"] = {"source": "XpressJobs"}
 
                         new_jobs_buffer.append(extracted_job)
 

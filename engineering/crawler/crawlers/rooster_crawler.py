@@ -6,7 +6,8 @@ import logging
 import math
 from typing import List, Dict, Any
 from crawl4ai import LLMExtractionStrategy, LLMConfig
-from schemas.job_schema import JOB_EXTRACTION_SCHEMA, BASE_JOB_INSTRUCTION
+from utils.occupation_classifier import OccupationClassifier
+from utils.industry_classifier import IndustryClassifier
 from config import BACKEND_BASE_URL, BATCH_SIZE
 
 from crawlers.base_crawler import BaseJobCrawler
@@ -30,7 +31,8 @@ class RoosterCrawler(BaseJobCrawler):
         payload = {"query": [], "limit": limit, "page": 1, "filters": {"country": "Sri Lanka"}}
         response = (await async_client.post(base_url, json=payload)).json()
         total_jobs = response['body']['count']
-        total_pages = math.ceil(total_jobs / limit)
+        #total_pages = math.ceil(total_jobs / limit)
+        total_pages = 2
         
         logger.info(f"Total jobs to fetch: {total_jobs} over {total_pages} pages.")
 
@@ -50,7 +52,11 @@ class RoosterCrawler(BaseJobCrawler):
     async def crawl_jobs(
         self,
         crawler_run_id: int,
-        async_client: httpx.AsyncClient
+        async_client: httpx.AsyncClient,
+        schema: dict,
+        instruction: str,
+        occupation_classifier: OccupationClassifier,
+        industry_classifier: IndustryClassifier,
     ) -> None:
 
         logger.info("Rooster crawl started.")
@@ -66,8 +72,8 @@ class RoosterCrawler(BaseJobCrawler):
                 provider="deepseek/deepseek-chat",
                 api_token=os.getenv("DEEPSEEK_API_KEY"),
             ),
-            instruction=BASE_JOB_INSTRUCTION,
-            schema=json.dumps(JOB_EXTRACTION_SCHEMA),
+            instruction=instruction,
+            schema=json.dumps(schema),
             extraction_type="schema", 
             apply_chunking=False,          
             extra_args={"base_url": "https://api.deepseek.com", "temperature": 0.0},
@@ -108,8 +114,15 @@ class RoosterCrawler(BaseJobCrawler):
                     try:
                         extracted_job = llm_res[0]
 
+                        job_text = f"{extracted_job.get('job_role', '')} {extracted_job.get('job_description', '')}"
+                        occupation_group_id = await occupation_classifier.classify(job_text)
+                        industry_subclass_id = await industry_classifier.classify(job_text)
+
                         extracted_job["meta_data"]["crawler_run_id"] = crawler_run_id
                         extracted_job["meta_data"]["minhash_signature"] = minhash_sig
+                        extracted_job["meta_data"]["occupation_group_id"] = occupation_group_id
+                        extracted_job["meta_data"]["industry_subclass_id"] = industry_subclass_id
+                        extracted_job["meta_data"]["source"] = {"source": "Rooster"}
 
                         new_jobs_buffer.append(extracted_job)
 

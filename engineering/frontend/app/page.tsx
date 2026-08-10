@@ -378,6 +378,9 @@ export default function DashboardPage() {
                       dataKey="name"
                       type="category"
                       tick={{ fontSize: 10 }}
+                      tickFormatter={(v) =>
+                        v.length > 50 ? `${v.substring(0, 50)}...` : v
+                      }
                       width={160}
                     />
                     <Tooltip />
@@ -981,7 +984,13 @@ export default function DashboardPage() {
                         <div className="h-36">
                           <ResponsiveContainer>
                             <BarChart data={indExpData} margin={{ left: -20 }}>
-                              <XAxis dataKey="label" tick={{ fontSize: 9 }} />
+                              <XAxis
+                                dataKey="label"
+                                tick={{ fontSize: 9 }}
+                                tickFormatter={(v) =>
+                                  v.length > 6 ? `${v.substring(0, 6)}...` : v
+                                }
+                              />
                               <YAxis tick={{ fontSize: 9 }} />
                               <Tooltip />
                               <Bar
@@ -1061,7 +1070,13 @@ export default function DashboardPage() {
                               data={indVocationalEduData}
                               margin={{ left: -20 }}
                             >
-                              <XAxis dataKey="label" tick={{ fontSize: 9 }} />
+                              <XAxis
+                                dataKey="label"
+                                tick={{ fontSize: 9 }}
+                                tickFormatter={(v) =>
+                                  v.length > 6 ? `${v.substring(0, 6)}...` : v
+                                }
+                              />
                               <YAxis tick={{ fontSize: 9 }} />
                               <Tooltip />
                               <Bar

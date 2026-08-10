@@ -10,5 +10,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY src/ ./src/
 
 ENV GO_API_URL=http://backend:8080/api/v1
+ENV CRAWLER_API_URL=http://crawler:8000
 
 CMD ["python", "-m", "src.server"]

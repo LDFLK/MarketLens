@@ -794,7 +794,7 @@ export default function ManageKpisPage() {
                   <div>
                     <p className={`text-xs font-bold ${isActive ? acc.text : "text-gray-700"}`}>{def.label}</p>
                     <p className="text-[10px] text-gray-400 mt-0.5">
-                      {hierarchyTotalCount(id)} items · {def.levels.length} levels
+                      {def.levels.length} levels
                     </p>
                   </div>
                   <span className={`w-2 h-2 rounded-full shrink-0 ${isActive ? acc.solidBg : "bg-gray-200"}`} />

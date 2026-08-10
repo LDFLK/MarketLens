@@ -15,8 +15,9 @@ from PIL import Image
 from playwright.async_api import async_playwright
 from crawlers.base_crawler import BaseJobCrawler
 from utils.dedup_utils import JobDuplicationCheck
-from parsers.governmentjobs_parser import GoverementJobsParser
-from schemas.job_schema import JOB_EXTRACTION_SCHEMA, BASE_JOB_INSTRUCTION
+from parsers.goverementjobs_parser import GoverementJobsParser
+from utils.occupation_classifier import OccupationClassifier
+from utils.industry_classifier import IndustryClassifier
 from config import BACKEND_BASE_URL, BATCH_SIZE
 
 #pytesseract path setup in docker container
@@ -58,7 +59,8 @@ class GoverementJobsCrawler(BaseJobCrawler):
             soup = BeautifulSoup(result.html, 'html.parser')
 
             pagination_text = soup.select_one('.category-results .paginate').text
-            total_pages = int(pagination_text.split()[-1])
+            #total_pages = int(pagination_text.split()[-1])
+            total_pages = 2
             print(total_pages)
             
             for page_num in range(1, total_pages + 1):
@@ -116,7 +118,11 @@ class GoverementJobsCrawler(BaseJobCrawler):
     async def crawl_jobs(
         self,
         crawler_run_id: int,
-        async_client: httpx.AsyncClient
+        async_client: httpx.AsyncClient,
+        schema: dict,
+        instruction: str,
+        occupation_classifier: OccupationClassifier,
+        industry_classifier: IndustryClassifier,
     ) -> None:
 
         logger.info("Goverement jobs crawl started.")
@@ -132,8 +138,8 @@ class GoverementJobsCrawler(BaseJobCrawler):
                 provider="deepseek/deepseek-chat",
                 api_token=os.getenv("DEEPSEEK_API_KEY"),
             ),
-            instruction=BASE_JOB_INSTRUCTION,
-            schema=json.dumps(JOB_EXTRACTION_SCHEMA),
+            instruction=instruction,
+            schema=json.dumps(schema),
             extraction_type="schema", 
             apply_chunking=False,          
             extra_args={"base_url": "https://api.deepseek.com", "temperature": 0.0},
@@ -174,8 +180,15 @@ class GoverementJobsCrawler(BaseJobCrawler):
                     try:
                         extracted_job = llm_res[0]
 
+                        job_text = f"{extracted_job.get('job_role', '')} {extracted_job.get('job_description', '')}"
+                        occupation_group_id = await occupation_classifier.classify(job_text)
+                        industry_subclass_id = await industry_classifier.classify(job_text)
+
                         extracted_job["meta_data"]["crawler_run_id"] = crawler_run_id
                         extracted_job["meta_data"]["minhash_signature"] = minhash_sig
+                        extracted_job["meta_data"]["occupation_group_id"] = occupation_group_id
+                        extracted_job["meta_data"]["industry_subclass_id"] = industry_subclass_id
+                        extracted_job["meta_data"]["source"] = {"source": "GovernmentJobs.lk"}
 
                         new_jobs_buffer.append(extracted_job)
 

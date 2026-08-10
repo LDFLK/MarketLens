@@ -5,14 +5,18 @@ import json
 import logging
 import re
 import pytesseract
+import httpx
 
+from typing import List, Dict, Any
 from bs4 import BeautifulSoup
 from PIL import Image
 from playwright.async_api import async_playwright
+from crawl4ai import LLMExtractionStrategy, LLMConfig
 from crawlers.base_crawler import BaseJobCrawler
 from utils.dedup_utils import JobDuplicationCheck
 from parsers.topjobs_parser import TopJobsParser
-from schemas.job_schema import JOB_EXTRACTION_SCHEMA, BASE_JOB_INSTRUCTION
+from utils.occupation_classifier import OccupationClassifier
+from utils.industry_classifier import IndustryClassifier
 from config import BACKEND_BASE_URL, BATCH_SIZE
 
 
@@ -26,7 +30,7 @@ POPUP_WAIT_TIMEOUT = 15000
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-log = logging.getLogger("topjobs_crawler")
+logger = logging.getLogger("topjobs_crawler")
 
 class TopJobsCrawler(BaseJobCrawler):
 
@@ -73,8 +77,9 @@ class TopJobsCrawler(BaseJobCrawler):
             page = await context.new_page()
 
             await page.goto(f"{LISTING_URL}&pageNo=1", wait_until="networkidle")
-            total_pages = await self._get_total_pages(await page.content())
-            log.info(f"Total pages detected: {total_pages}")
+            #total_pages = await self._get_total_pages(await page.content())
+            total_pages = 1
+            logger.info(f"Total pages detected: {total_pages}")
 
 
             all_jobs = []
@@ -83,19 +88,22 @@ class TopJobsCrawler(BaseJobCrawler):
                 # log.info("Navigating to listings...")
                 # await page.goto(LISTING_URL, wait_until="networkidle")
 
-                log.info(f"Scraping page {page_num} of {total_pages}...")
+                logger.info(f"Scraping page {page_num} of {total_pages}...")
                 if page_num > 1:
                     await page.goto(f"{LISTING_URL}&pageNo={page_num}", wait_until="networkidle")
                 
                 content = await page.content()
                 jobs = await self._parse_listing_html(content)
-                log.info(f"Found {len(jobs)} jobs. Starting popup processing...")
-
-                x = 0
+                logger.info(f"Found {len(jobs)} jobs. Starting popup processing...")
 
                 for i, job in enumerate(jobs):
+
+                    if len(all_jobs) >= 30:
+                        logger.info(f"Reached job limit for this page — stopping.")
+                        break
+
                     try:
-                        log.info(f"[{i+1}/{len(jobs)}] Processing {job['employer']}")
+                        logger.info(f"[{i+1}/{len(jobs)}] Processing {job['employer']}")
 
                         await asyncio.sleep(3)
                         
@@ -116,7 +124,7 @@ class TopJobsCrawler(BaseJobCrawler):
                                 break
                         
                         if not img_locator:
-                            log.error("Could not find a large advertisement image.")
+                            logger.error("Could not find a large advertisement image.")
                             await popup.close()
                             continue
                             #raise Exception("Could not find a large advertisement image.")
@@ -136,14 +144,9 @@ class TopJobsCrawler(BaseJobCrawler):
                         job["ocr_text"] = " ".join(pytesseract.image_to_string(image, lang=TESSERACT_LANG).split())
 
                         all_jobs.append(job)
-
-                        x = x + 1
-                        if x >= 5:
-                            await asyncio.sleep(10)
-                            break
                         
                     except Exception as e:
-                        log.error(f"Failed to process {job['row_id']}: {e}")
+                        logger.error(f"Failed to process {job['row_id']}: {e}")
                         job["error"] = str(e)
 
             await browser.close()
@@ -151,7 +154,7 @@ class TopJobsCrawler(BaseJobCrawler):
             # with open("vacancies.json", "w", encoding="utf-8") as f:
             #     json.dump(jobs, f, ensure_ascii=False, indent=2)
             #print(all_jobs)
-            log.info("Done! Data saved to vacancies.json")
+            logger.info("Done! Data saved to vacancies.json")
             return all_jobs
 
 
@@ -159,7 +162,11 @@ class TopJobsCrawler(BaseJobCrawler):
     async def crawl_jobs(
         self,
         crawler_run_id: int,
-        async_client: httpx.AsyncClient
+        async_client: httpx.AsyncClient,
+        schema: dict,
+        instruction: str,
+        occupation_classifier: OccupationClassifier,
+        industry_classifier: IndustryClassifier,
     ) -> None:
 
         logger.info("Top jobs crawl started.")
@@ -175,8 +182,8 @@ class TopJobsCrawler(BaseJobCrawler):
                 provider="deepseek/deepseek-chat",
                 api_token=os.getenv("DEEPSEEK_API_KEY"),
             ),
-            instruction=BASE_JOB_INSTRUCTION,
-            schema=json.dumps(JOB_EXTRACTION_SCHEMA),
+            instruction=instruction,
+            schema=json.dumps(schema),
             extraction_type="schema", 
             apply_chunking=False,          
             extra_args={"base_url": "https://api.deepseek.com", "temperature": 0.0},
@@ -217,8 +224,15 @@ class TopJobsCrawler(BaseJobCrawler):
                     try:
                         extracted_job = llm_res[0]
 
+                        job_text = f"{extracted_job.get('job_role', '')} {extracted_job.get('job_description', '')}"
+                        occupation_group_id = await occupation_classifier.classify(job_text)
+                        industry_subclass_id = await industry_classifier.classify(job_text)
+
                         extracted_job["meta_data"]["crawler_run_id"] = crawler_run_id
                         extracted_job["meta_data"]["minhash_signature"] = minhash_sig
+                        extracted_job["meta_data"]["occupation_group_id"] = occupation_group_id
+                        extracted_job["meta_data"]["industry_subclass_id"] = industry_subclass_id
+                        extracted_job["meta_data"]["source"] = {"source": "TopJobs"}
 
                         new_jobs_buffer.append(extracted_job)
 

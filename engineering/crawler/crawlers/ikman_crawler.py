@@ -7,7 +7,8 @@ from typing import List, Dict, Any
 from crawlers.base_crawler import BaseJobCrawler
 from utils.dedup_utils import JobDuplicationCheck
 from parsers.ikman_parser import IkmanParser
-from schemas.job_schema import JOB_EXTRACTION_SCHEMA, BASE_JOB_INSTRUCTION
+from utils.occupation_classifier import OccupationClassifier
+from utils.industry_classifier import IndustryClassifier
 from config import BACKEND_BASE_URL, BATCH_SIZE
 
 from crawl4ai import (
@@ -50,10 +51,16 @@ class IkmanCrawler(BaseJobCrawler):
     async def crawl_jobs(
         self,
         crawler_run_id: int,
-        async_client: httpx.AsyncClient
+        async_client: httpx.AsyncClient,
+        schema: dict,
+        instruction: str,
+        occupation_classifier: OccupationClassifier,
+        industry_classifier: IndustryClassifier,
     ) -> None:
 
-        max_pages = await self._get_last_page_from_text()
+        count = 1
+        #max_pages = await self._get_last_page_from_text()
+        max_pages = 1
 
         new_jobs_buffer: List[Dict[str, Any]] = []
         lsh_index_buffer: List[Dict[str, Any]] = []
@@ -64,8 +71,8 @@ class IkmanCrawler(BaseJobCrawler):
 
         llm_extraction_strategy = LLMExtractionStrategy(
             llm_config=LLMConfig(provider="deepseek/deepseek-chat", api_token=os.getenv("DEEPSEEK_API_KEY")),
-            instruction=BASE_JOB_INSTRUCTION,
-            schema=json.dumps(JOB_EXTRACTION_SCHEMA),
+            instruction=instruction,
+            schema=json.dumps(schema),
             extra_args={"base_url": "https://api.deepseek.com", "temperature": 0.0},
         )
 
@@ -90,6 +97,9 @@ class IkmanCrawler(BaseJobCrawler):
             results_generator = await crawler.arun_many(urls=unique_urls, config=detail_config, dispatcher=dispatcher)
 
             async for result in results_generator:
+                logger.info(f"Ikman jobs count: {count}")
+                count = count + 1
+                
                 if not result.success or not result.markdown:
                     continue
 
@@ -127,8 +137,15 @@ class IkmanCrawler(BaseJobCrawler):
                             if isinstance(extracted_job, list) and len(extracted_job) > 0:
                                 extracted_job = extracted_job[0]
 
+                            job_text = f"{extracted_job.get('job_role', '')} {extracted_job.get('job_description', '')}"
+                            occupation_group_id = await occupation_classifier.classify(job_text)
+                            industry_subclass_id = await industry_classifier.classify(job_text)
+
                             extracted_job["meta_data"]["crawler_run_id"] = crawler_run_id
                             extracted_job["meta_data"]["minhash_signature"] = minhash_sig
+                            extracted_job["meta_data"]["occupation_group_id"] = occupation_group_id
+                            extracted_job["meta_data"]["industry_subclass_id"] = industry_subclass_id
+                            extracted_job["meta_data"]["source"] = {"source": "Ikman"}
 
                             new_jobs_buffer.append(extracted_job)
 
