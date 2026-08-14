@@ -57,7 +57,7 @@ const barCursor = { fill: "#f4f4f5" };
 
 // Shared session key: the dashboard writes the selected range to
 // the same key, so the period stays consistent across all pages.
-const DATE_RANGE_STORAGE_KEY = "lmis-date-range";
+const DATE_RANGE_STORAGE_KEY = "lmis-date-range:v2";
 
 // ─────────────────────────────────────────────────────────────
 // INDUSTRY HIERARCHY (SLSIC / ISIC Rev.4 aligned)
@@ -404,6 +404,7 @@ function hash01(s: string): number {
 }
 
 const toISO = (dt: Date) => dt.toISOString().slice(0, 10);
+const DATA_START = new Date(new Date().getFullYear() - 3, 0, 1);
 const DATA_END = new Date();
 
 // Approximate daily national vacancy volume (same spirit as the
@@ -784,45 +785,30 @@ function IndustryAnalysis() {
     <div className="min-h-screen w-full min-w-0 bg-zinc-50 text-zinc-800 font-sans">
       {/* Rendered inside the normal layout — sidebar stays visible.
           Back to Dashboard link sits below the header. */}
-      {/* HEADER */}
-      <header className="bg-white border-b border-zinc-200 px-4 md:px-8 py-5 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 sticky top-0 z-40">
-        <div className="min-w-0">
-          <h1 className="text-lg md:text-xl font-black text-zinc-900 tracking-tight truncate">
-            Industry Analysis (SLSIC)
-          </h1>
-          <p className="text-xs text-zinc-400 mt-1 font-medium">
-            Analyze through the industry classification hierarchy
-          </p>
-        </div>
-
-        {/* 1. SELECTED DATE RANGE */}
-        <div className="flex items-center gap-2 shrink-0 bg-zinc-100 px-4 py-2 rounded-xl">
-          <svg
-            className="w-3.5 h-3.5 text-zinc-400"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <rect x="3" y="4" width="18" height="18" rx="2" />
-            <line x1="16" y1="2" x2="16" y2="6" />
-            <line x1="8" y1="2" x2="8" y2="6" />
-            <line x1="3" y1="10" x2="21" y2="10" />
-          </svg>
-          <span className="text-xs font-bold text-zinc-700">{fromDate}</span>
-          <span className="text-zinc-400 text-xs">→</span>
-          <span className="text-xs font-bold text-zinc-700">{toDate}</span>
+      {/* HEADER — same as the main dashboard page */}
+      <header className="bg-white border-b border-zinc-200 px-4 md:px-8 py-5 sticky top-0 z-40">
+        <div className="flex justify-between items-start gap-4">
+          <div className="min-w-0">
+            <h1 className="text-lg md:text-xl font-black text-zinc-900 tracking-tight truncate">
+              Labour Market Demand Dashboard
+            </h1>
+            <p className="text-xs text-zinc-400 mt-1 font-medium">
+              National overview of labour market demand across occupations and
+              industries
+            </p>
+          </div>
+          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white text-xs font-black shadow-md border border-white shrink-0">
+            BJ
+          </div>
         </div>
       </header>
 
       <div className="p-4 md:p-8 space-y-6 md:space-y-8 w-full max-w-[1400px] mx-auto pb-20">
-        {/* BACK BUTTON — below the header */}
+        {/* BACK — plain link, no button styling */}
         <div>
           <Link
             href="/"
-            className="inline-flex items-center gap-2 text-xs font-bold text-zinc-500 hover:text-zinc-900 bg-white border border-zinc-200 hover:border-zinc-300 px-3 py-2 rounded-lg transition-colors"
+            className="cursor-pointer inline-flex items-center gap-1.5 text-xs font-bold text-zinc-500 hover:text-zinc-900 transition-colors"
           >
             <svg
               className="w-3.5 h-3.5"
@@ -837,6 +823,55 @@ function IndustryAnalysis() {
             </svg>
             Back
           </Link>
+        </div>
+
+        {/* DATE RANGE FILTER — editable here too; the shared session
+            key keeps it in sync with the main dashboard both ways */}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="cursor-pointer flex items-center gap-2 bg-zinc-100 px-3 py-2 rounded-xl">
+            <label className="cursor-pointer text-[10px] font-black uppercase tracking-wider text-zinc-400">
+              From
+            </label>
+            <input
+              type="date"
+              value={fromDate}
+              min={toISO(DATA_START)}
+              max={toDate}
+              onChange={(e) => setFromDate(e.target.value)}
+              className="cursor-pointer [&::-webkit-calendar-picker-indicator]:cursor-pointer bg-transparent text-xs font-bold text-zinc-700 outline-none"
+            />
+          </div>
+
+          <span
+            className="text-zinc-400 font-black text-sm select-none"
+            aria-hidden
+          >
+            →
+          </span>
+
+          <div className="cursor-pointer flex items-center gap-2 bg-zinc-100 px-3 py-2 rounded-xl">
+            <label className="cursor-pointer text-[10px] font-black uppercase tracking-wider text-zinc-400">
+              To
+            </label>
+            <input
+              type="date"
+              value={toDate}
+              min={fromDate}
+              max={toISO(DATA_END)}
+              onChange={(e) => setToDate(e.target.value)}
+              className="cursor-pointer [&::-webkit-calendar-picker-indicator]:cursor-pointer bg-transparent text-xs font-bold text-zinc-700 outline-none"
+            />
+          </div>
+        </div>
+
+        {/* PAGE TITLE — moved out of the header into the content */}
+        <div>
+          <h2 className="text-base md:text-lg font-black text-zinc-900 tracking-tight">
+            Industry Analysis (SLSIC)
+          </h2>
+          <p className="text-xs text-zinc-400 mt-1 font-medium">
+            Analyze through the industry classification hierarchy
+          </p>
         </div>
 
         {/* 2. HIERARCHY SELECTOR */}
@@ -868,7 +903,7 @@ function IndustryAnalysis() {
                       value={node.code}
                       title={node.name}
                       onChange={(e) => handleSelect(level, e.target.value)}
-                      className="bg-zinc-100 rounded-xl px-3 py-2.5 text-xs font-bold text-zinc-700 outline-none border border-transparent focus:border-zinc-300 max-w-[200px] truncate"
+                      className="cursor-pointer bg-zinc-100 rounded-xl px-3 py-2.5 text-xs font-bold text-zinc-700 outline-none border border-transparent focus:border-zinc-300 max-w-[260px] truncate"
                     >
                       {options.map((opt) => (
                         <option key={opt.code} value={opt.code}>
@@ -887,7 +922,7 @@ function IndustryAnalysis() {
                 onClick={handleAddLevel}
                 aria-label={`Add ${LEVEL_LABELS[path.length]}`}
                 title={`Add ${LEVEL_LABELS[path.length]}`}
-                className="mb-0.5 w-9 h-9 rounded-xl bg-zinc-900 hover:bg-zinc-700 text-white font-black text-base flex items-center justify-center transition-colors"
+                className="cursor-pointer mb-0.5 w-9 h-9 rounded-xl bg-zinc-900 hover:bg-zinc-700 text-white font-black text-base flex items-center justify-center transition-colors"
               >
                 +
               </button>
@@ -899,7 +934,7 @@ function IndustryAnalysis() {
                 onClick={handleRemoveLevel}
                 aria-label="Remove last level"
                 title="Remove last level"
-                className="mb-0.5 w-9 h-9 rounded-xl bg-zinc-100 hover:bg-zinc-200 text-zinc-500 font-black text-base flex items-center justify-center transition-colors"
+                className="cursor-pointer mb-0.5 w-9 h-9 rounded-xl bg-zinc-100 hover:bg-zinc-200 text-zinc-500 font-black text-base flex items-center justify-center transition-colors"
               >
                 −
               </button>
@@ -933,11 +968,10 @@ function IndustryAnalysis() {
 
           {/* VIEW TOGGLE — chart or table, applies to everything below */}
           <div className="px-5 py-3 border-b border-zinc-200 flex items-center gap-3">
-            
             <div className="flex bg-zinc-100 rounded-lg p-0.5">
               <button
                 onClick={() => setViewMode("chart")}
-                className={`px-3 py-1.5 text-xs font-bold rounded-md transition-colors ${
+                className={`cursor-pointer px-3 py-1.5 text-xs font-bold rounded-md transition-colors ${
                   viewMode === "chart"
                     ? "bg-white text-zinc-900 shadow-sm"
                     : "text-zinc-500 hover:text-zinc-700"
@@ -947,7 +981,7 @@ function IndustryAnalysis() {
               </button>
               <button
                 onClick={() => setViewMode("table")}
-                className={`px-3 py-1.5 text-xs font-bold rounded-md transition-colors ${
+                className={`cursor-pointer px-3 py-1.5 text-xs font-bold rounded-md transition-colors ${
                   viewMode === "table"
                     ? "bg-white text-zinc-900 shadow-sm"
                     : "text-zinc-500 hover:text-zinc-700"

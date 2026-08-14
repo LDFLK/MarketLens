@@ -24,10 +24,11 @@ import {
 const TRANSLATIONS = {
   en: {
     title: "Labour Market Demand Dashboard",
+    pageDesc: "National overview of labour market demand across occupations and industries",
     subtitle: "Select a date range to view labour market analytics for that period",
     dateFrom: "From",
     dateTo: "To",
-    trendTitle: "Vacancy Trend for Selected Period",
+    trendTitle: "Vacancy Trend",
     trendSubDaily: "Day-by-day vacancy counts",
     trendSubMonthly: "Monthly vacancy counts",
     totalInRange: "Total vacancies in range",
@@ -49,6 +50,7 @@ const TRANSLATIONS = {
   },
   si: {
     title: "ශ්‍රම වෙළඳපල ඉල්ලුම උපකරණ පුවරුව",
+    pageDesc: "වෘත්තීන් සහ කර්මාන්ත හරහා ශ්‍රම වෙළඳපල ඉල්ලුම පිළිබඳ ජාතික දළ විශ්ලේෂණය",
     subtitle: "එම කාලය සඳහා ශ්‍රම වෙළඳපල විශ්ලේෂණ බැලීමට දින පරාසයක් තෝරන්න",
     dateFrom: "සිට",
     dateTo: "දක්වා",
@@ -74,6 +76,7 @@ const TRANSLATIONS = {
   },
   ta: {
     title: "தொழில் சந்தை தேவை தகவல் பலகை",
+    pageDesc: "தொழில்கள் மற்றும் தொழில்துறைகள் முழுவதும் தொழில் சந்தை தேவையின் தேசிய கண்ணோட்டம்",
     subtitle: "அந்தக் காலத்திற்கான தொழில் சந்தை பகுப்பாய்வுகளைக் காண ஒரு தேதி வரம்பைத் தேர்ந்தெடுக்கவும்",
     dateFrom: "தொடக்கம்",
     dateTo: "முடிவு",
@@ -137,9 +140,12 @@ const tooltipItemStyle = { color: "#fafafa" };
 const tooltipLabelStyle = { color: "#a1a1aa", fontWeight: 600 };
 const barCursor = { fill: "#f4f4f5" };
 
-// Shared session key: the analysis pages write to the same key so
-// the selected range stays consistent across all pages.
-const DATE_RANGE_STORAGE_KEY = "lmis-date-range";
+// Shared session keys. The analysis pages read these so the
+// selected range stays consistent across pages and their hierarchy
+// dropdowns can seed from the dashboard's data without refetching.
+const DATE_RANGE_STORAGE_KEY = "lmis-date-range:v2";
+const OCC_GROUPS_STORAGE_KEY = "lmis-occupation-groups";
+const IND_SECTORS_STORAGE_KEY = "lmis-industry-sectors";
 
 // ─────────────────────────────────────────────────────────────
 // MOCK DATA ENGINE
@@ -364,8 +370,21 @@ export default function DashboardPage() {
       const saved = sessionStorage.getItem(DATE_RANGE_STORAGE_KEY);
       if (saved) {
         const { from, to } = JSON.parse(saved);
-        if (from) setFromDate(from);
-        if (to) setToDate(to);
+        // Only accept a saved range that is well-formed and within
+        // the data bounds; anything else is ignored so the
+        // Jan 1 → today default stays in place.
+        const isDate = (v: unknown): v is string =>
+          typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v);
+        if (
+          isDate(from) &&
+          isDate(to) &&
+          from <= to &&
+          from >= toISO(DATA_START) &&
+          to <= toISO(DATA_END)
+        ) {
+          setFromDate(from);
+          setToDate(to);
+        }
       }
     } catch {
       // ignore corrupt storage — defaults stay in place
@@ -424,55 +443,98 @@ export default function DashboardPage() {
     return split.map((s) => ({ label: s.name, share: Math.round((s.value / total) * 100) }));
   }, [filteredDays]);
 
+
+  // Persist the occupation (major group) and industry (sector)
+  // values for the current range. The "See More" analysis pages
+  // read these to seed their first dropdown and top-level counts
+  // without refetching. Codes are extracted from the display names
+  // ("1. Managers" → code "1", "A - Agriculture" → code "A"); when
+  // this page moves to the real API, store the API's id/code/name
+  // fields here directly instead.
+  useEffect(() => {
+    if (!restored) return;
+    try {
+      const occGroups = occData.map((o) => ({
+        code: o.name.split(".")[0].trim(),
+        name: o.name.replace(/^\d+\.\s*/, ""),
+        vacancies: o.value,
+      }));
+      sessionStorage.setItem(
+        OCC_GROUPS_STORAGE_KEY,
+        JSON.stringify({ from: fromDate, to: toDate, groups: occGroups }),
+      );
+
+      const indSectors = indData.map((s) => ({
+        code: s.name.split(" - ")[0].trim(),
+        name: s.name.split(" - ").slice(1).join(" - "),
+        vacancies: s.value,
+      }));
+      sessionStorage.setItem(
+        IND_SECTORS_STORAGE_KEY,
+        JSON.stringify({ from: fromDate, to: toDate, sectors: indSectors }),
+      );
+    } catch {}
+  }, [restored, fromDate, toDate, occData, indData]);
+
   const trendSub = granularity === "daily" ? d.trendSubDaily : d.trendSubMonthly;
 
   return (
     <div className="min-h-screen w-full min-w-0 bg-zinc-50 text-zinc-800 font-sans">
       {/* HEADER */}
-      <header className="bg-white border-b border-zinc-200 px-4 md:px-8 py-5 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 sticky top-0 z-40">
-        <div className="min-w-0">
-          <h1 className="text-lg md:text-xl font-black text-zinc-900 tracking-tight truncate">{d.title}</h1>
-          <p className="text-xs text-zinc-400 mt-1 font-medium">{d.subtitle}</p>
-        </div>
-
-        {/* DATE RANGE FILTER */}
-        <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto justify-start lg:justify-end shrink-0">
-          <div className="flex items-center gap-2 bg-zinc-100 px-3 py-2 rounded-xl">
-            <label className="text-[10px] font-black uppercase tracking-wider text-zinc-400">
-              {d.dateFrom}
-            </label>
-            <input
-              type="date"
-              value={fromDate}
-              min={toISO(DATA_START)}
-              max={toDate}
-              onChange={(e) => setFromDate(e.target.value)}
-              className="bg-transparent text-xs font-bold text-zinc-700 outline-none"
-            />
+      <header className="bg-white border-b border-zinc-200 px-4 md:px-8 py-5 sticky top-0 z-40">
+        {/* Top row: title + topic description on the left, avatar right */}
+        <div className="flex justify-between items-start gap-4">
+          <div className="min-w-0">
+            <h1 className="text-lg md:text-xl font-black text-zinc-900 tracking-tight truncate">{d.title}</h1>
+            <p className="text-xs text-zinc-400 mt-1 font-medium">{d.pageDesc}</p>
           </div>
-
-          {/* arrow between the two date filters */}
-          <span className="text-zinc-400 font-black text-sm select-none" aria-hidden>
-            →
-          </span>
-
-          <div className="flex items-center gap-2 bg-zinc-100 px-3 py-2 rounded-xl">
-            <label className="text-[10px] font-black uppercase tracking-wider text-zinc-400">
-              {d.dateTo}
-            </label>
-            <input
-              type="date"
-              value={toDate}
-              min={fromDate}
-              max={toISO(DATA_END)}
-              onChange={(e) => setToDate(e.target.value)}
-              className="bg-transparent text-xs font-bold text-zinc-700 outline-none"
-            />
+          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white text-xs font-black shadow-md border border-white shrink-0">
+            BJ
           </div>
         </div>
+
       </header>
 
       <div className="p-4 md:p-8 space-y-6 md:space-y-8 w-full max-w-[1400px] mx-auto pb-20">
+        {/* DATE RANGE SELECTOR — above the page content, left aligned */}
+        <div>
+          <p className="text-xs text-zinc-400 font-medium">{d.subtitle}</p>
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2 bg-zinc-100 px-3 py-2 rounded-xl">
+              <label className="text-[10px] font-black uppercase tracking-wider text-zinc-400">
+                {d.dateFrom}
+              </label>
+              <input
+                type="date"
+                value={fromDate}
+                min={toISO(DATA_START)}
+                max={toDate}
+                onChange={(e) => setFromDate(e.target.value)}
+                className="bg-transparent text-xs font-bold text-zinc-700 outline-none"
+              />
+            </div>
+
+            {/* arrow between the two date filters */}
+            <span className="text-zinc-400 font-black text-sm select-none" aria-hidden>
+              →
+            </span>
+
+            <div className="flex items-center gap-2 bg-zinc-100 px-3 py-2 rounded-xl">
+              <label className="text-[10px] font-black uppercase tracking-wider text-zinc-400">
+                {d.dateTo}
+              </label>
+              <input
+                type="date"
+                value={toDate}
+                min={fromDate}
+                max={toISO(DATA_END)}
+                onChange={(e) => setToDate(e.target.value)}
+                className="bg-transparent text-xs font-bold text-zinc-700 outline-none"
+              />
+            </div>
+          </div>
+        </div>
+
         {rangeInvalid && (
           <div className="bg-zinc-100 border border-zinc-300 text-zinc-700 text-xs font-bold px-4 py-3 rounded-xl">
             {d.invalidRange}
@@ -493,7 +555,7 @@ export default function DashboardPage() {
           </div>
           <div className="flex-1 mt-4 min-w-0">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={trendData} margin={{ top: 10, right: 20, left: 0, bottom: 5 }}>
+              <AreaChart data={trendData} margin={{ top: 10, right: 20, left: 10, bottom: 15 }}>
                 <defs>
                   <linearGradient id="trendFill" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor={C.indigo} stopOpacity={0.15} />
@@ -506,8 +568,12 @@ export default function DashboardPage() {
                   tick={{ fontSize: 10, fill: TICK_COLOR }}
                   interval="preserveStartEnd"
                   minTickGap={24}
+                  label={{ value: "Time Period", position: "insideBottom", offset: -10, fontSize: 11, fill: TICK_COLOR }}
                 />
-                <YAxis tick={{ fontSize: 10, fill: TICK_COLOR }} />
+                <YAxis
+                  tick={{ fontSize: 10, fill: TICK_COLOR }}
+                  label={{ value: "No. of Vacancies", angle: -90, position: "insideLeft", fontSize: 11, fill: TICK_COLOR }}
+                />
                 <Tooltip contentStyle={tooltipStyle} itemStyle={tooltipItemStyle} labelStyle={tooltipLabelStyle} />
                 <Area
                   type="monotone"
@@ -523,48 +589,50 @@ export default function DashboardPage() {
         </div>
 
         {/* OCCUPATION CHART */}
-        <div className="bg-white border border-zinc-200 p-5 rounded-xl shadow-sm h-[520px] flex flex-col">
-          <div className="flex justify-between items-start border-b border-zinc-100 pb-2">
-            <div>
-              <h4 className="text-sm font-bold text-zinc-900">{d.occChartTitle}</h4>
-              <p className="text-[11px] text-zinc-400">{d.occChartSub}</p>
-            </div>
-            <Link
-              href={`/occupations?from=${fromDate}&to=${toDate}`}
-              className="shrink-0 text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-colors"
-            >
-              {d.seeMore ?? "See More →"}
-            </Link>
+        <div className="bg-white border border-zinc-200 p-5 rounded-xl shadow-sm h-[540px] flex flex-col">
+          <div className="border-b border-zinc-100 pb-2">
+            <h4 className="text-sm font-bold text-zinc-900">{d.occChartTitle}</h4>
+            <p className="text-[11px] text-zinc-400">{d.occChartSub}</p>
           </div>
           <div className="flex-1 mt-4 min-w-0">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={occData} layout="vertical" margin={{ left: 20, right: 20 }}>
-                <XAxis type="number" tick={{ fontSize: 10, fill: TICK_COLOR }} />
-                <YAxis dataKey="name" type="category" tick={{ fontSize: 10, fill: TICK_COLOR }} width={160} />
+              <BarChart data={occData} layout="vertical" margin={{ left: 20, right: 20, bottom: 12 }}>
+                <XAxis
+                  type="number"
+                  tick={{ fontSize: 10, fill: TICK_COLOR }}
+                  label={{ value: "No. of Vacancies", position: "insideBottom", offset: -8, fontSize: 11, fill: TICK_COLOR }}
+                />
+                <YAxis
+                  dataKey="name"
+                  type="category"
+                  tick={{ fontSize: 10, fill: TICK_COLOR }}
+                  width={170}
+                  label={{ value: "Occupation Group", angle: -90, position: "insideLeft", fontSize: 11, fill: TICK_COLOR }}
+                />
                 <Tooltip contentStyle={tooltipStyle} itemStyle={tooltipItemStyle} labelStyle={tooltipLabelStyle} cursor={barCursor} />
                 <Bar dataKey="value" fill={C.indigo} radius={[0, 4, 4, 0]} barSize={16} />
               </BarChart>
             </ResponsiveContainer>
           </div>
-        </div>
-
-        {/* INDUSTRY CHART */}
-        <div className="bg-white border border-zinc-200 p-5 rounded-xl shadow-sm h-[620px] flex flex-col">
-          <div className="flex justify-between items-start border-b border-zinc-100 pb-2">
-            <div>
-              <h4 className="text-sm font-bold text-zinc-900">{d.indChartTitle}</h4>
-              <p className="text-[11px] text-zinc-400">{d.indChartSub}</p>
-            </div>
+          <div className="pt-8 flex justify-end">
             <Link
-              href={`/industries?from=${fromDate}&to=${toDate}`}
-              className="shrink-0 text-xs font-bold text-teal-700 bg-teal-50 border border-teal-100 hover:bg-teal-100 px-3 py-1.5 rounded-lg transition-colors"
+              href={`/occupations?from=${fromDate}&to=${toDate}`}
+              className="text-xs font-bold text-indigo-600 hover:text-indigo-800 hover:underline inline-flex items-center gap-1 transition-colors"
             >
               {d.seeMore ?? "See More →"}
             </Link>
           </div>
-          <div className="flex-1 mt-4 pb-16 min-w-0">
+        </div>
+
+        {/* INDUSTRY CHART */}
+        <div className="bg-white border border-zinc-200 p-5 rounded-xl shadow-sm h-[640px] flex flex-col">
+          <div className="border-b border-zinc-100 pb-2">
+            <h4 className="text-sm font-bold text-zinc-900">{d.indChartTitle}</h4>
+            <p className="text-[11px] text-zinc-400">{d.indChartSub}</p>
+          </div>
+          <div className="flex-1 mt-4 pb-10 min-w-0">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={indData}>
+              <BarChart data={indData} margin={{ bottom: 14 }}>
                 <XAxis
                   dataKey="name"
                   tick={{ fontSize: 9, fill: TICK_COLOR }}
@@ -573,12 +641,25 @@ export default function DashboardPage() {
                   textAnchor="end"
                   height={100}
                   tickFormatter={(v: string) => (v.length > 20 ? `${v.substring(0, 20)}...` : v)}
+                  label={{ value: "Industry Division (SLSIC)", position: "insideBottom", offset: -10, fontSize: 11, fill: TICK_COLOR }}
                 />
-                <YAxis type="number" tick={{ fontSize: 10, fill: TICK_COLOR }} />
+                <YAxis
+                  type="number"
+                  tick={{ fontSize: 10, fill: TICK_COLOR }}
+                  label={{ value: "No. of Vacancies", angle: -90, position: "insideLeft", fontSize: 11, fill: TICK_COLOR }}
+                />
                 <Tooltip contentStyle={tooltipStyle} itemStyle={tooltipItemStyle} labelStyle={tooltipLabelStyle} cursor={barCursor} />
                 <Bar dataKey="value" fill={C.teal} radius={[4, 4, 0, 0]} barSize={22} />
               </BarChart>
             </ResponsiveContainer>
+          </div>
+          <div className="pt-2 flex justify-end">
+            <Link
+              href={`/industries?from=${fromDate}&to=${toDate}`}
+              className="text-xs font-bold text-teal-600 hover:text-teal-800 hover:underline inline-flex items-center gap-1 transition-colors"
+            >
+              {d.seeMore ?? "See More →"}
+            </Link>
           </div>
         </div>
 
@@ -590,9 +671,9 @@ export default function DashboardPage() {
           </div>
           <div className="flex-1 mt-4 min-w-0">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={sectorData} margin={{ top: 10, right: 10, left: -10, bottom: 5 }}>
-                <XAxis dataKey="name" tick={{ fontSize: 10, fill: TICK_COLOR }} />
-                <YAxis tick={{ fontSize: 10, fill: TICK_COLOR }} />
+              <BarChart data={sectorData} margin={{ top: 10, right: 10, left: 0, bottom: 15 }}>
+                <XAxis dataKey="name" tick={{ fontSize: 10, fill: TICK_COLOR }} label={{ value: "Employment Sector", position: "insideBottom", offset: -10, fontSize: 11, fill: TICK_COLOR }} />
+                <YAxis tick={{ fontSize: 10, fill: TICK_COLOR }} label={{ value: "No. of Vacancies", angle: -90, position: "insideLeft", fontSize: 11, fill: TICK_COLOR }} />
                 <Tooltip contentStyle={tooltipStyle} itemStyle={tooltipItemStyle} labelStyle={tooltipLabelStyle} cursor={barCursor} />
                 <Bar dataKey="value" radius={[4, 4, 0, 0]} barSize={48}>
                   {sectorData.map((_, i) => (
@@ -610,9 +691,9 @@ export default function DashboardPage() {
             <h4 className="text-sm font-bold text-zinc-900 border-b border-zinc-100 pb-2">{d.expChartTitle}</h4>
             <div className="flex-1 mt-4 min-w-0">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={expData} margin={{ top: 10, right: 10, left: -20, bottom: 5 }}>
-                  <XAxis dataKey="name" tick={{ fontSize: 10, fill: TICK_COLOR }} />
-                  <YAxis tick={{ fontSize: 10, fill: TICK_COLOR }} />
+                <BarChart data={expData} margin={{ top: 10, right: 10, left: 0, bottom: 15 }}>
+                  <XAxis dataKey="name" tick={{ fontSize: 10, fill: TICK_COLOR }} label={{ value: "Experience Level", position: "insideBottom", offset: -10, fontSize: 11, fill: TICK_COLOR }} />
+                  <YAxis tick={{ fontSize: 10, fill: TICK_COLOR }} label={{ value: "No. of Vacancies", angle: -90, position: "insideLeft", fontSize: 11, fill: TICK_COLOR }} />
                   <Tooltip contentStyle={tooltipStyle} itemStyle={tooltipItemStyle} labelStyle={tooltipLabelStyle} cursor={barCursor} />
                   <Bar dataKey="value" fill={C.sky} radius={[4, 4, 0, 0]} barSize={30} />
                 </BarChart>
@@ -680,9 +761,9 @@ export default function DashboardPage() {
           <h4 className="text-sm font-bold text-zinc-900 border-b border-zinc-100 pb-2">{d.vocationalChartTitle}</h4>
           <div className="flex-1 mt-4 min-w-0">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={nvqData} margin={{ top: 10, right: 10, left: -10, bottom: 5 }}>
-                <XAxis dataKey="name" tick={{ fontSize: 10, fill: TICK_COLOR }} />
-                <YAxis tick={{ fontSize: 10, fill: TICK_COLOR }} />
+              <BarChart data={nvqData} margin={{ top: 10, right: 10, left: 0, bottom: 15 }}>
+                <XAxis dataKey="name" tick={{ fontSize: 10, fill: TICK_COLOR }} label={{ value: "NVQ Level", position: "insideBottom", offset: -10, fontSize: 11, fill: TICK_COLOR }} />
+                <YAxis tick={{ fontSize: 10, fill: TICK_COLOR }} label={{ value: "No. of Vacancies", angle: -90, position: "insideLeft", fontSize: 11, fill: TICK_COLOR }} />
                 <Tooltip contentStyle={tooltipStyle} itemStyle={tooltipItemStyle} labelStyle={tooltipLabelStyle} cursor={barCursor} />
                 <Bar dataKey="value" fill={C.violet} radius={[4, 4, 0, 0]} barSize={28} />
               </BarChart>
