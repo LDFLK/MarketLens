@@ -20,6 +20,26 @@ func main() {
 
 	v1 := r.Group("/api/v1")
 	{
+		// Dashboard endpoints
+		v1.GET("/vacancy-trend", jobCtrl.GetVacancyTrendHandler)
+		v1.GET("/vacancy-total", jobCtrl.GetTotalVacancyCountHandler)
+		v1.GET("/occupations/by-date-range", jobCtrl.GetOccupationJobCountByDateRangeHandler)
+		v1.GET("/industries/by-date-range", jobCtrl.GetIndustryJobCountByDateRangeHandler)
+		v1.GET("/:standard/:level/:id/total-job-count", jobCtrl.GetTotalJobCountByLevelHandler)
+		v1.GET("/:standard/:level/:id/children", jobCtrl.GetLevelChildrenHandler)
+		v1.GET("/:standard/:level/:id/employment-sector", jobCtrl.GetEmploymentSectorByLevelHandler)
+		v1.GET("/:standard/:level/:id/experience", jobCtrl.GetExperienceByLevelHandler)
+		v1.GET("/:standard/:level/:id/province", jobCtrl.GetProvinceByLevelHandler)
+		v1.GET("/:standard/:level/:id/education", jobCtrl.GetEducationLevelByLevelHandler)
+		v1.GET("/:standard/:level/:id/formality", jobCtrl.GetFormalityByLevelHandler)
+		v1.GET("/:standard/:level/:id/gender", jobCtrl.GetGenderByLevelHandler)
+		v1.GET("/:standard/:level/:id/vocational-education", jobCtrl.GetVocationalEducationByLevelHandler)
+		v1.GET("/:standard/:level/:id/remote-onsite", jobCtrl.GetRemoteOnSiteByLevelHandler)
+		v1.GET("/:standard/:level/:id/job-type", jobCtrl.GetJobTypeByLevelHandler)
+		v1.GET("/occupation/:level/:id/top-15-skills", jobCtrl.GetTop15SkillsByOccupationLevelHandler)
+		v1.GET("/occupation/:level/:id/all-skills", jobCtrl.GetAllSkillsByOccupationLevelHandler)
+		v1.GET("/occupation/:level/:id/top-hiring-employers", jobCtrl.GetTopHiringEmployersByOccupationLevelHandler)
+
 		v1.DELETE("/jobs/:id", jobCtrl.DeleteJobHandler)
 		v1.GET("/jobs", jobCtrl.GetActiveJobsHandler)
 		v1.GET("/industries", jobCtrl.GetAllIndustriesHandler)
