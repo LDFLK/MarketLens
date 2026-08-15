@@ -27,6 +27,7 @@ services:
     container_name: go_backend
     ports:
       - "8080:8080"
+      - "9090:9090"
     env_file:
       - ./engineering/backend/.env
     depends_on:
@@ -67,23 +68,6 @@ services:
         condition: service_started
     networks:
       - app-network
-
-  # MCP SERVER
-  mcp:
-    build:
-      context: ./engineering/mcp
-      dockerfile: Dockerfile.mcp
-    container_name: marketlens_mcp
-    stdin_open: true
-    tty: false
-    environment:
-      - GO_API_URL=http://backend:8080/api/v1
-      - CRAWLER_API_URL=http://crawler:8000
-    depends_on:
-      - backend
-    networks:
-      - app-network
-    restart: unless-stopped
 
 volumes:
   pgdata:

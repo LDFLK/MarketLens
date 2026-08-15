@@ -4,8 +4,10 @@ import (
 	"marketlens-go-backend/config"
 	"marketlens-go-backend/controllers"
 	"marketlens-go-backend/repositories"
+	mcpserver "marketlens-go-backend/mcp"
 
 	"github.com/gin-gonic/gin"
+	"log"
 )
 
 
@@ -17,6 +19,14 @@ func main() {
 
 	jobRepo := repositories.NewJobRepository(config.DB)
 	jobCtrl := controllers.NewJobController(jobRepo)
+
+	mcpServer := mcpserver.New(jobRepo)
+    go func() {
+        log.Println("MCP server listening on :9090/mcp")
+        if err := mcpserver.StartHTTP(mcpServer, ":9090"); err != nil {
+            log.Fatalf("MCP server failed: %v", err)
+        }
+    }()
 
 	v1 := r.Group("/api/v1")
 	{
