@@ -1,3 +1,55 @@
+export interface VacancyTrendPoint {
+  label: string;
+  open_job_count: number;
+}
+
+export interface VacancyTrendResponse {
+  from_date: string;
+  to_date: string;
+  granularity: "weekly" | "monthly";
+  count: number;
+  data: VacancyTrendPoint[];
+}
+
+export interface VacancyTotalResponse {
+  from_date: string;
+  to_date: string;
+  total_vacancies: number;
+}
+
+export interface OccupationDateRangeStat {
+  id: number;
+  name: string;
+  open_job_count: number;
+}
+
+export interface OccupationsByDateRangeResponse {
+  from_date: string;
+  to_date: string;
+  count: number;
+  occupations: OccupationDateRangeStat[];
+}
+
+export interface IndustryDateRangeStat {
+  id: number;
+  name: string;
+  open_job_count: number;
+}
+
+export interface IndustriesByDateRangeResponse {
+  from_date: string;
+  to_date: string;
+  count: number;
+  industries: IndustryDateRangeStat[];
+}
+
+export interface DashboardOverview {
+  vacancy_trend: VacancyTrendResponse;
+  vacancy_total: VacancyTotalResponse;
+  by_occupation: OccupationsByDateRangeResponse;
+  by_industry: IndustriesByDateRangeResponse;
+}
+
 export interface ActiveJobStats {
   active_job_count: number;
   last_month_count: number;
@@ -64,19 +116,19 @@ export interface JobTypeStat {
   open_job_count: number;
 }
 
-export interface DashboardOverview {
-  active_jobs:                ActiveJobStats;
-  by_occupation:              { count: number; occupations: OccupationStat[] };
-  by_industry:                { count: number; industries: IndustryStat[] };
-  by_experience:              { count: number; experiences: ExperienceStat[] };
-  by_education:               { count: number; education_levels: EducationStat[] };
-  by_formality:               { count: number; formalities: FormalityStat[] };
-  by_employment_sector:       { count: number; employment_sectors: EmploymentSectorStat[] };
-  by_gender:                  { count: number; genders: GenderStat[] };
-  by_vocational_education:    { count: number; vocational_educations: VocationalEducationStat[] };
-  remote_vs_onsite:           RemoteOnSiteStat;
-  by_job_type:                { count: number; job_types: JobTypeStat[] };
-}
+// export interface DashboardOverview {
+//   active_jobs:                ActiveJobStats;
+//   by_occupation:              { count: number; occupations: OccupationStat[] };
+//   by_industry:                { count: number; industries: IndustryStat[] };
+//   by_experience:              { count: number; experiences: ExperienceStat[] };
+//   by_education:               { count: number; education_levels: EducationStat[] };
+//   by_formality:               { count: number; formalities: FormalityStat[] };
+//   by_employment_sector:       { count: number; employment_sectors: EmploymentSectorStat[] };
+//   by_gender:                  { count: number; genders: GenderStat[] };
+//   by_vocational_education:    { count: number; vocational_educations: VocationalEducationStat[] };
+//   remote_vs_onsite:           RemoteOnSiteStat;
+//   by_job_type:                { count: number; job_types: JobTypeStat[] };
+// }
 
 export interface YearlyTrend {
   year: number;

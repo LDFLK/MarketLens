@@ -4,25 +4,29 @@ export interface HierarchyNode {
   code: string;
 }
 
-export interface IndustryDivisionChildrenResponse {
-  industry_sector_id: number;
+export interface MajorGroupListResponse {
   count: number;
-  industry_divisions: HierarchyNode[];
+  major_groups: HierarchyNode[];
 }
-export interface IndustryGroupChildrenResponse {
-  industry_division_id: number;
+export interface SubMajorGroupChildrenResponse {
+  major_group_id: number;
   count: number;
-  industry_groups: HierarchyNode[];
+  sub_major_groups: HierarchyNode[];
 }
-export interface IndustryClassChildrenResponse {
-  industry_group_id: number;
+export interface MinorGroupChildrenResponse {
+  sub_major_group_id: number;
   count: number;
-  industry_classes: HierarchyNode[];
+  minor_groups: HierarchyNode[];
 }
-export interface IndustrySubclassChildrenResponse {
-  industry_class_id: number;
+export interface UnitGroupChildrenResponse {
+  minor_group_id: number;
   count: number;
-  industry_subclasses: HierarchyNode[];
+  unit_groups: HierarchyNode[];
+}
+export interface OccupationGroupChildrenResponse {
+  unit_group_id: number;
+  count: number;
+  occupation_groups: HierarchyNode[];
 }
 
 export interface TotalJobCountResult {
@@ -58,7 +62,7 @@ export interface VocationalEducationStat { id: number; level: string; open_job_c
 export interface JobTypeStat { id: number; type: string; open_job_count: number; }
 export interface RemoteOnSiteStat { remote_count: number; on_site_count: number; }
 
-export interface IndustryAnalysisResponse {
+export interface OccupationAnalysisResponse {
   standard: string;
   level: string;
   id: string;
@@ -77,39 +81,24 @@ export interface IndustryAnalysisResponse {
   job_type: { job_types: JobTypeStat[] };
 }
 
-export interface Industry {
-  id:   number;
-  name: string;
-}
+export interface SkillStat { id: number; skill: string; open_job_count: number; }
+export interface EmployerStat { id: number; name: string; open_job_count: number; }
 
-export interface IndustryListResponse {
-  count:      number;
-  industries: Industry[];
+export interface Top15SkillsResponse {
+  level: string; id: number; from_date: string; to_date: string;
+  count: number; skills: SkillStat[];
 }
-
-export interface SkillDemand {
-  id:             number;
-  skill:          string;
-  open_job_count: number;
+export interface AllSkillsResponse {
+  level: string; id: number; from_date: string; to_date: string;
+  count: number; total: number; limit: number; offset: number; skills: SkillStat[];
 }
-
-export interface EmployerDemand {
-  id:             number;
-  name:           string;
-  open_job_count: number;
+export interface TopHiringEmployersResponse {
+  level: string; id: number; from_date: string; to_date: string;
+  count: number; employers: EmployerStat[];
 }
-
-export interface MostInDemandSkill {
-  id:             number;
-  skill:          string;
-  open_job_count: number;
-}
-
-export interface IndustrySkillsAnalytics {
-  industry_id:          number;
-  unique_skills_count:  number;
-  most_in_demand_skill: MostInDemandSkill | null;
-  top15_skills:         SkillDemand[];
-  all_skills:           SkillDemand[];
-  top_employers:        EmployerDemand[];
+export interface OccupationSkillsResponse {
+  level: string; id: string; from_date: string | null; to_date: string | null;
+  top_15_skills: Top15SkillsResponse;
+  all_skills: AllSkillsResponse;
+  top_hiring_employers: TopHiringEmployersResponse;
 }

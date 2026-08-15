@@ -756,19 +756,15 @@ func (r *JobRepository) GetTotalVacancyCount(fromDate, toDate time.Time) (int64,
 }
 
 // Get vacancy trend for a selected date range
-//This function returns job counts grouped into 7-day buckets, anchored at fromDate, within the given date range
-func (r *JobRepository) GetVacancyTrendWeekly(fromDate, toDate time.Time) ([]models.VacancyTrendPoint, error) {
+//This function returns job counts grouped day by day within the given date range
+func (r *JobRepository) GetVacancyTrendDaily(fromDate, toDate time.Time) ([]models.VacancyTrendPoint, error) {
 	var rows []struct {
 		PeriodStart  time.Time
 		OpenJobCount int64
 	}
 
 	err := r.db.Table("job_post").
-		Select(
-			"(?::date + (FLOOR((meta_data.posted_at::date - ?::date) / 7) * 7) * INTERVAL '1 day')::date AS period_start, "+
-				"COALESCE(SUM(job_post.no_of_vacancies), 0) AS open_job_count",
-			fromDate, fromDate,
-		).
+		Select("meta_data.posted_at::date AS period_start, COALESCE(SUM(job_post.no_of_vacancies), 0) AS open_job_count").
 		Joins("JOIN meta_data ON meta_data.job_post_id = job_post.id").
 		Where("meta_data.posted_at::date BETWEEN ? AND ?", fromDate, toDate).
 		Group("period_start").
@@ -776,7 +772,7 @@ func (r *JobRepository) GetVacancyTrendWeekly(fromDate, toDate time.Time) ([]mod
 		Scan(&rows).Error
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to query weekly vacancy trend: %w", err)
+		return nil, fmt.Errorf("failed to query daily vacancy trend: %w", err)
 	}
 
 	results := make([]models.VacancyTrendPoint, 0, len(rows))
@@ -785,15 +781,6 @@ func (r *JobRepository) GetVacancyTrendWeekly(fromDate, toDate time.Time) ([]mod
 			Label:        formatWeekLabel(row.PeriodStart),
 			OpenJobCount: row.OpenJobCount,
 		})
-	}
-
-	// If the last bucket is a partial week, relabel it with the actual requested
-	// end date so the chart's final point visibly matches what the user asked for.
-	if n := len(rows); n > 0 {
-		lastBucketNaturalEnd := rows[n-1].PeriodStart.AddDate(0, 0, 6)
-		if lastBucketNaturalEnd.After(toDate) {
-			results[n-1].Label = formatWeekLabel(toDate)
-		}
 	}
 
 	return results, nil
@@ -826,19 +813,35 @@ func (r *JobRepository) GetVacancyTrendMonthly(fromDate, toDate time.Time) ([]mo
 		})
 	}
 
-	// If the last month is only partially covered by toDate, relabel it with the
-	// exact requested end date so the chart's final point matches what was asked for.
-	if n := len(rows); n > 0 {
-		lastMonthNaturalEnd := rows[n-1].PeriodStart.AddDate(0, 1, 0).AddDate(0, 0, -1)
-		if lastMonthNaturalEnd.After(toDate) {
-			results[n-1].Label = toDate.Format("Jan 2 2006")
+	n := len(rows)
+	if n == 0 {
+		return results, nil
+	}
+
+	firstBucketStart := rows[0].PeriodStart
+	firstBucketNaturalEnd := firstBucketStart.AddDate(0, 1, 0).AddDate(0, 0, -1)
+	lastBucketStart := rows[n-1].PeriodStart
+	lastBucketNaturalEnd := lastBucketStart.AddDate(0, 1, 0).AddDate(0, 0, -1)
+
+	firstIsPartial := fromDate.After(firstBucketStart)   
+	lastIsPartial := toDate.Before(lastBucketNaturalEnd) 
+
+	switch {
+	case n == 1 && firstIsPartial && lastIsPartial:
+		results[0].Label = fmt.Sprintf("%s - %s", fromDate.Format("Jan 2"), toDate.Format("Jan 2, 2006"))
+
+	default:
+		if firstIsPartial {
+			results[0].Label = fmt.Sprintf("%s - %s", fromDate.Format("Jan 2"), firstBucketNaturalEnd.Format("Jan 2, 2006"))
+		}
+		if lastIsPartial {
+			results[n-1].Label = fmt.Sprintf("%s - %s", lastBucketStart.Format("Jan 2"), toDate.Format("Jan 2, 2006"))
 		}
 	}
 
 	return results, nil
 }
 
-// formatWeekLabel produces a label like "May 2" for the start of a 7-day bucket
 func formatWeekLabel(t time.Time) string {
 	return t.Format("Jan 2")
 }

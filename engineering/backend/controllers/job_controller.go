@@ -1552,7 +1552,7 @@ func (ctrl *JobController) GetVacancyTrendHandler(c *gin.Context) {
 
 	if diffDays < 60 {
 		granularity = "weekly"
-		results, repoErr = ctrl.repo.GetVacancyTrendWeekly(fromDate, toDate)
+		results, repoErr = ctrl.repo.GetVacancyTrendDaily(fromDate, toDate)
 	} else {
 		granularity = "monthly"
 		results, repoErr = ctrl.repo.GetVacancyTrendMonthly(fromDate, toDate)
